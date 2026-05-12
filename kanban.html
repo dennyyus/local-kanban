@@ -1,0 +1,1178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kanban — LaunchGood</title>
+  <meta name="description" content="Personal Kanban board for LaunchGood work. Local, no login, no server.">
+  <meta name="theme-color" content="#171c2e">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23171c2e'/><rect x='5' y='8' width='6' height='16' rx='1.5' fill='%233d4a6b'/><rect x='13' y='8' width='6' height='11' rx='1.5' fill='%23e09020'/><rect x='21' y='8' width='6' height='7' rx='1.5' fill='%2300b87d'/></svg>">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:          oklch(96.5% 0.008 78);
+      --surface:     oklch(99.5% 0.003 78);
+      --col-bg:      oklch(91.5% 0.013 78);
+
+      --text-1:      oklch(20%  0.02  262);
+      --text-2:      oklch(50%  0.015 262);
+      --text-3:      oklch(68%  0.008 78);
+
+      --accent:      oklch(64%  0.175 162);
+      --accent-dk:   oklch(57%  0.185 162);
+      --accent-bg:   oklch(93.5% 0.055 162);
+
+      --doing-dot:   oklch(71%  0.165 68);
+      --doing-bg:    oklch(93%  0.06  68);
+      --doing-text:  oklch(48%  0.14  68);
+
+      --border:      oklch(87%  0.012 78);
+      --border-soft: oklch(91%  0.008 78);
+
+      --shadow-sm: 0 1px 3px oklch(20% 0.02 262 / 0.07), 0 2px 8px oklch(20% 0.02 262 / 0.04);
+      --shadow-md: 0 2px 8px oklch(20% 0.02 262 / 0.1), 0 6px 20px oklch(20% 0.02 262 / 0.06);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text-1);
+      min-height: 100vh;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    /* ── Header ─────────────────────────────────────────── */
+    header {
+      background: oklch(17% 0.025 262);
+      height: 52px;
+      padding: 0 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid oklch(25% 0.02 262);
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .logo {
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: -0.2px;
+      color: oklch(94% 0.005 78);
+    }
+
+    .logo .g { color: var(--accent); }
+
+    .board-name {
+      font-size: 13px;
+      color: oklch(55% 0.01 262);
+      padding-left: 14px;
+      border-left: 1px solid oklch(28% 0.02 262);
+    }
+
+    /* ── Backup pill ─────────────────────────────────────── */
+    .backup-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-family: inherit;
+      color: oklch(58% 0.01 262);
+      cursor: pointer;
+      background: oklch(22% 0.02 262);
+      border: 1px solid oklch(30% 0.02 262);
+      transition: border-color 0.12s, background 0.12s, color 0.12s;
+    }
+
+    .backup-pill:hover {
+      border-color: oklch(40% 0.02 262);
+      background: oklch(26% 0.02 262);
+      color: oklch(75% 0.008 78);
+    }
+
+    .backup-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      background: oklch(38% 0.01 262);
+    }
+
+    .backup-pill.connected    .backup-dot { background: var(--accent); }
+    .backup-pill.needs-reauth .backup-dot { background: var(--doing-dot); }
+    .backup-pill.error        .backup-dot { background: oklch(60% 0.2 25); }
+
+    /* ── Board area ──────────────────────────────────────── */
+    .board-area {
+      padding: 18px 20px 0;
+    }
+
+    .meta-row {
+      display: flex;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+
+    .btn-archive-toggle {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: none;
+      border: none;
+      color: var(--text-3);
+      font-size: 12.5px;
+      font-family: inherit;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 6px;
+      transition: background 0.12s, color 0.12s;
+    }
+
+    .btn-archive-toggle:hover { background: oklch(90% 0.01 78); color: var(--text-2); }
+
+    .archive-badge {
+      background: oklch(89% 0.012 78);
+      color: var(--text-2);
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 1px 6px;
+    }
+
+    /* ── Archive panel ───────────────────────────────────── */
+    #archive-panel {
+      margin-bottom: 16px;
+      background: var(--surface);
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      overflow: hidden;
+    }
+
+    #archive-panel h3 {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-2);
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border-soft);
+      background: oklch(97.5% 0.005 78);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .archived-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border-soft);
+      font-size: 13px;
+    }
+
+    .archived-item:last-child { border-bottom: none; }
+    .archived-item-name { font-weight: 500; color: var(--text-1); }
+    .archived-item-meta { font-size: 11.5px; color: var(--text-3); margin-top: 2px; }
+
+    .btn-restore {
+      background: oklch(93% 0.012 78);
+      border: none;
+      border-radius: 6px;
+      padding: 5px 11px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-2);
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.12s;
+    }
+
+    .btn-restore:hover { background: oklch(88% 0.015 78); }
+
+    .empty-state {
+      padding: 16px;
+      text-align: center;
+      color: var(--text-3);
+      font-size: 13px;
+    }
+
+    /* ── Board ───────────────────────────────────────────── */
+    .board-scroll { overflow-x: auto; padding-bottom: 24px; }
+
+    .board {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      min-width: max-content;
+    }
+
+    /* ── Column ──────────────────────────────────────────── */
+    .column {
+      background: var(--col-bg);
+      border-radius: 10px;
+      width: 292px;
+      min-width: 292px;
+      display: flex;
+      flex-direction: column;
+      max-height: calc(100vh - 132px);
+      border: 1px solid var(--border-soft);
+    }
+
+    .col-header {
+      padding: 11px 12px 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .col-title {
+      font-size: 12.5px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      color: var(--text-1);
+    }
+
+    .col-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .col-todo  .col-dot { background: oklch(68% 0.01 262); }
+    .col-doing .col-dot { background: var(--doing-dot); }
+    .col-done  .col-dot { background: var(--accent); }
+    .col-custom .col-dot { background: oklch(68% 0.165 290); }
+
+    .col-count {
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 1px 6px;
+      background: oklch(85% 0.012 78);
+      color: var(--text-2);
+    }
+
+    .col-doing .col-count { background: var(--doing-bg); color: var(--doing-text); }
+    .col-done  .col-count { background: var(--accent-bg); color: var(--accent-dk); }
+
+    .btn-icon {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--text-3);
+      border-radius: 5px;
+      padding: 3px 6px;
+      font-size: 14px;
+      line-height: 1;
+      font-family: inherit;
+      transition: background 0.12s, color 0.12s;
+    }
+
+    .btn-icon:hover { background: oklch(85% 0.015 78); color: var(--text-2); }
+
+    /* ── Cards ───────────────────────────────────────────── */
+    .cards {
+      padding: 2px 8px 6px;
+      overflow-y: auto;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .column.drag-over .cards {
+      background: oklch(64% 0.175 162 / 0.07);
+      border-radius: 6px;
+    }
+
+    .card {
+      background: var(--surface);
+      border-radius: 7px;
+      padding: 10px 12px;
+      font-size: 13.5px;
+      line-height: 1.55;
+      cursor: grab;
+      box-shadow: var(--shadow-sm);
+      border: 1px solid var(--border-soft);
+      transition: box-shadow 0.15s, transform 0.1s;
+    }
+
+    .card:active { cursor: grabbing; }
+
+    .card.dragging {
+      opacity: 0.45;
+      transform: scale(0.97);
+    }
+
+    .card:hover { box-shadow: var(--shadow-md); }
+
+    .card-text {
+      word-break: break-word;
+      white-space: pre-wrap;
+      color: var(--text-1);
+    }
+
+    .card-footer {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 8px;
+    }
+
+    .btn-del {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: oklch(80% 0.008 78);
+      font-size: 13px;
+      padding: 0;
+      font-family: inherit;
+      line-height: 1;
+      transition: color 0.12s;
+    }
+
+    .btn-del:hover { color: oklch(55% 0.2 25); }
+
+    .btn-icon.del:hover { color: oklch(55% 0.2 25); background: oklch(96% 0.04 25); }
+
+    /* ── Week badge ──────────────────────────────────────── */
+    .week-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      background: var(--accent-bg);
+      color: var(--accent-dk);
+      border-radius: 5px;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 7px;
+      cursor: pointer;
+      border: none;
+      font-family: inherit;
+      position: relative;
+      transition: background 0.12s;
+    }
+
+    .week-badge:hover { background: oklch(89% 0.075 162); }
+    .week-badge .caret { font-size: 9px; opacity: 0.6; }
+
+    .week-picker {
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: var(--shadow-md);
+      z-index: 200;
+      min-width: 110px;
+      overflow: hidden;
+    }
+
+    .week-opt {
+      padding: 7px 12px;
+      font-size: 12.5px;
+      cursor: pointer;
+      color: var(--text-1);
+      transition: background 0.08s;
+      white-space: nowrap;
+    }
+
+    .week-opt:hover { background: oklch(95% 0.008 78); }
+
+    .week-opt.active {
+      background: var(--accent-bg);
+      color: var(--accent-dk);
+      font-weight: 600;
+    }
+
+    /* ── Add card ────────────────────────────────────────── */
+    .add-card-area { padding: 2px 8px 8px; }
+
+    textarea.card-input {
+      width: 100%;
+      border: 1.5px solid var(--border);
+      border-radius: 7px;
+      padding: 9px 11px;
+      font-size: 13.5px;
+      font-family: inherit;
+      resize: none;
+      outline: none;
+      background: var(--surface);
+      color: var(--text-1);
+      line-height: 1.55;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+
+    textarea.card-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px oklch(64% 0.175 162 / 0.12);
+    }
+
+    .add-card-row {
+      display: flex;
+      gap: 6px;
+      margin-top: 5px;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: oklch(99% 0.003 78);
+      border: none;
+      border-radius: 6px;
+      padding: 6px 13px;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.12s;
+    }
+
+    .btn-primary:hover { background: var(--accent-dk); }
+
+    .btn-ghost {
+      background: none;
+      border: none;
+      color: var(--text-3);
+      font-size: 13px;
+      font-family: inherit;
+      cursor: pointer;
+      padding: 6px 8px;
+      border-radius: 6px;
+      transition: background 0.12s, color 0.12s;
+    }
+
+    .btn-ghost:hover { background: oklch(88% 0.012 78); color: var(--text-2); }
+
+    .btn-add-card {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      background: none;
+      border: none;
+      color: var(--text-3);
+      font-size: 13px;
+      font-family: inherit;
+      cursor: pointer;
+      padding: 7px 8px;
+      border-radius: 6px;
+      width: 100%;
+      text-align: left;
+      transition: background 0.12s, color 0.12s;
+    }
+
+    .btn-add-card:hover { background: oklch(87% 0.015 78); color: var(--text-2); }
+
+    /* ── Add list ────────────────────────────────────────── */
+    .add-col-btn {
+      background: oklch(93% 0.01 78 / 0.55);
+      border: 1.5px dashed oklch(82% 0.012 78);
+      border-radius: 10px;
+      width: 256px;
+      min-width: 256px;
+      min-height: 68px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: var(--text-3);
+      font-size: 13px;
+      gap: 6px;
+      font-family: inherit;
+      align-self: flex-start;
+      padding: 14px;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+
+    .add-col-btn:hover {
+      background: oklch(93% 0.01 78 / 0.9);
+      color: var(--text-2);
+      border-color: oklch(72% 0.012 78);
+    }
+
+    .add-col-form {
+      background: var(--col-bg);
+      border-radius: 10px;
+      padding: 12px;
+      width: 256px;
+      min-width: 256px;
+      align-self: flex-start;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      border: 1px solid var(--border-soft);
+    }
+
+    input.col-input {
+      border: 1.5px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 13.5px;
+      font-family: inherit;
+      outline: none;
+      width: 100%;
+      color: var(--text-1);
+      background: var(--surface);
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+
+    input.col-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px oklch(64% 0.175 162 / 0.12);
+    }
+
+    /* ── Backup popover ──────────────────────────────────── */
+    .bk-pop {
+      position: fixed;
+      top: 58px;
+      right: 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      box-shadow: var(--shadow-md);
+      z-index: 400;
+      min-width: 216px;
+      overflow: hidden;
+      padding: 5px;
+    }
+
+    .bk-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-3);
+      padding: 6px 10px 2px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .bk-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-family: inherit;
+      cursor: pointer;
+      color: var(--text-1);
+      background: none;
+      border: none;
+      width: 100%;
+      text-align: left;
+      transition: background 0.1s;
+    }
+
+    .bk-item:hover { background: oklch(94% 0.01 78); }
+    .bk-item.danger { color: oklch(50% 0.2 25); }
+    .bk-item.danger:hover { background: oklch(96% 0.04 25); }
+    .bk-sep { height: 1px; background: var(--border-soft); margin: 4px 0; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <span class="logo">Launch<span class="g">Good</span></span>
+    <span class="board-name">Kanban</span>
+  </div>
+  <button class="backup-pill" id="backup-btn" onclick="toggleBkPop()">
+    <span class="backup-dot"></span>
+    <span id="backup-lbl">Backup</span>
+  </button>
+</header>
+
+<div class="board-area">
+  <div class="meta-row">
+    <button class="btn-archive-toggle" onclick="toggleArchive()">
+      Archived lists
+      <span class="archive-badge" id="arc-count">0</span>
+    </button>
+  </div>
+
+  <div id="arc-panel" style="display:none;">
+    <h3>Archived lists</h3>
+    <div id="arc-list"><div class="empty-state">No archived lists yet.</div></div>
+  </div>
+
+  <div class="board-scroll">
+    <div class="board" id="board"></div>
+  </div>
+</div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+
+let state = (() => {
+  try {
+    const s = localStorage.getItem('lg-kanban-v2');
+    if (s) return JSON.parse(s);
+  } catch {}
+  return {
+    columns: [
+      { id: 'col-todo',  title: 'To Do',  cards: [] },
+      { id: 'col-doing', title: 'Doing',  cards: [] },
+      { id: 'col-done',  title: 'Done',   cards: [] },
+    ],
+    archived: [],
+  };
+})();
+
+function persist() {
+  localStorage.setItem('lg-kanban-v2', JSON.stringify(state));
+  scheduleBackup();
+}
+
+function uid() { return Math.random().toString(36).slice(2, 10); }
+
+function esc(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function fmtDate(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+// ── Drag ──────────────────────────────────────────────────────────────────────
+
+let drag = null;
+
+// ── Render ────────────────────────────────────────────────────────────────────
+
+function render() {
+  const board = document.getElementById('board');
+  board.innerHTML = '';
+  state.columns.forEach(col => board.appendChild(mkCol(col)));
+  board.appendChild(mkAddColBtn());
+  renderArc();
+}
+
+function colCls(id) {
+  return { 'col-todo': 'col-todo', 'col-doing': 'col-doing', 'col-done': 'col-done' }[id] ?? 'col-custom';
+}
+
+function mkCol(col) {
+  const el = document.createElement('div');
+  el.className = `column ${colCls(col.id)}`;
+  el.dataset.colId = col.id;
+
+  el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('drag-over'); });
+  el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
+  el.addEventListener('drop', e => {
+    e.preventDefault();
+    el.classList.remove('drag-over');
+    if (drag) moveCard(drag.colId, drag.cardId, col.id);
+  });
+
+  el.innerHTML = `
+    <div class="col-header">
+      <div class="col-title">
+        <span class="col-dot"></span>
+        <span>${esc(col.title)}</span>
+        <span class="col-count">${col.cards.length}</span>
+        ${isDone(col.id) ? `<button class="week-badge" onclick="toggleWeekPick(event,'${col.id}')">
+          ${esc(col.week || weekLabel())}<span class="caret">▾</span>
+        </button>` : ''}
+      </div>
+      <div style="display:flex;gap:2px">
+        <button class="btn-icon del" title="Delete list" onclick="deleteCol('${col.id}')">✕</button>
+        <button class="btn-icon" title="Archive list" onclick="arcCol('${col.id}')">⊘</button>
+      </div>
+    </div>
+    <div class="cards" id="cards-${col.id}"></div>
+    <div class="add-card-area" id="add-${col.id}">
+      <button class="btn-add-card" onclick="showAdd('${col.id}')">
+        <span style="font-size:15px;line-height:1">＋</span> Add card
+      </button>
+    </div>
+  `;
+
+  const cardsEl = el.querySelector(`#cards-${col.id}`);
+  if (!col.cards.length) {
+    cardsEl.innerHTML = `<div class="empty-state" style="padding:14px 8px">No cards yet</div>`;
+  } else {
+    col.cards.forEach(card => cardsEl.appendChild(mkCard(col.id, card)));
+  }
+  return el;
+}
+
+function mkCard(colId, card) {
+  const el = document.createElement('div');
+  el.className = 'card';
+  el.draggable = true;
+
+  el.innerHTML = `
+    <div class="card-text">${esc(card.text)}</div>
+    <div class="card-footer">
+      <button class="btn-del" title="Delete" onclick="delCard('${colId}','${card.id}')">✕</button>
+    </div>
+  `;
+
+  el.addEventListener('dragstart', () => { drag = { colId, cardId: card.id }; el.classList.add('dragging'); });
+  el.addEventListener('dragend',   () => { el.classList.remove('dragging'); drag = null; });
+  return el;
+}
+
+function mkAddColBtn() {
+  const el = document.createElement('button');
+  el.className = 'add-col-btn';
+  el.id = 'add-col-btn';
+  el.innerHTML = `<span style="font-size:16px">＋</span> Add list`;
+  el.onclick = showAddCol;
+  return el;
+}
+
+// ── Add card ──────────────────────────────────────────────────────────────────
+
+function showAdd(colId) {
+  const area = document.getElementById(`add-${colId}`);
+  area.innerHTML = `
+    <textarea class="card-input" id="inp-${colId}" placeholder="Write a card…" rows="3"></textarea>
+    <div class="add-card-row">
+      <button class="btn-primary" onclick="submitCard('${colId}')">Add card</button>
+      <button class="btn-ghost" onclick="cancelAdd('${colId}')">Cancel</button>
+    </div>
+  `;
+  const ta = document.getElementById(`inp-${colId}`);
+  ta.focus();
+  ta.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitCard(colId); }
+    if (e.key === 'Escape') cancelAdd(colId);
+  });
+}
+
+function submitCard(colId) {
+  const ta = document.getElementById(`inp-${colId}`);
+  const text = ta.value.trim();
+  if (!text) { ta.focus(); return; }
+  const col = state.columns.find(c => c.id === colId);
+  if (!col) return;
+  const card = { id: uid(), text };
+  if (isDone(colId) && !col.week) col.week = weekLabel();
+  col.cards.push(card);
+  persist();
+  render();
+  showAdd(colId);
+}
+
+function cancelAdd(colId) {
+  document.getElementById(`add-${colId}`).innerHTML = `
+    <button class="btn-add-card" onclick="showAdd('${colId}')">
+      <span style="font-size:15px;line-height:1">＋</span> Add card
+    </button>
+  `;
+}
+
+function delCard(colId, cardId) {
+  const col = state.columns.find(c => c.id === colId);
+  if (!col) return;
+  col.cards = col.cards.filter(c => c.id !== cardId);
+  persist();
+  render();
+}
+
+// ── Move card ─────────────────────────────────────────────────────────────────
+
+function moveCard(fromColId, cardId, toColId) {
+  if (fromColId === toColId) return;
+  const from = state.columns.find(c => c.id === fromColId);
+  const to   = state.columns.find(c => c.id === toColId);
+  if (!from || !to) return;
+  const idx = from.cards.findIndex(c => c.id === cardId);
+  if (idx === -1) return;
+  const [card] = from.cards.splice(idx, 1);
+  if (isDone(toColId) && !to.week) to.week = weekLabel();
+  to.cards.push(card);
+  persist();
+  render();
+}
+
+// ── Add column ────────────────────────────────────────────────────────────────
+
+function showAddCol() {
+  const btn = document.getElementById('add-col-btn');
+  if (!btn) return;
+  const form = document.createElement('div');
+  form.className = 'add-col-form';
+  form.innerHTML = `
+    <input class="col-input" id="col-inp" placeholder="List name…" />
+    <div style="display:flex;gap:6px">
+      <button class="btn-primary" onclick="submitCol()">Add list</button>
+      <button class="btn-ghost" onclick="render()">Cancel</button>
+    </div>
+  `;
+  btn.replaceWith(form);
+  const inp = document.getElementById('col-inp');
+  inp.focus();
+  inp.addEventListener('keydown', e => {
+    if (e.key === 'Enter') submitCol();
+    if (e.key === 'Escape') render();
+  });
+}
+
+function submitCol() {
+  const inp = document.getElementById('col-inp');
+  const title = inp?.value.trim();
+  if (!title) { inp?.focus(); return; }
+  state.columns.push({ id: `col-${uid()}`, title, cards: [] });
+  persist();
+  render();
+}
+
+// ── Archive column ────────────────────────────────────────────────────────────
+
+function arcCol(colId) {
+  const idx = state.columns.findIndex(c => c.id === colId);
+  if (idx === -1) return;
+  const [col] = state.columns.splice(idx, 1);
+  col.archivedAt = new Date().toISOString();
+  (state.archived ??= []).push(col);
+  persist();
+  render();
+}
+
+function restoreCol(colId) {
+  const idx = state.archived.findIndex(c => c.id === colId);
+  if (idx === -1) return;
+  const [col] = state.archived.splice(idx, 1);
+  delete col.archivedAt;
+  state.columns.push(col);
+  persist();
+  render();
+}
+
+function toggleArchive() {
+  const p = document.getElementById('arc-panel');
+  p.style.display = p.style.display === 'none' ? 'block' : 'none';
+}
+
+function renderArc() {
+  const archived = state.archived ?? [];
+  document.getElementById('arc-count').textContent = archived.length;
+  const list = document.getElementById('arc-list');
+  if (!archived.length) {
+    list.innerHTML = `<div class="empty-state">No archived lists yet.</div>`;
+    return;
+  }
+  list.innerHTML = archived.map(col => `
+    <div class="archived-item">
+      <div>
+        <div class="archived-item-name">${esc(col.title)}</div>
+        <div class="archived-item-meta">${col.cards.length} card${col.cards.length !== 1 ? 's' : ''} · ${fmtDate(col.archivedAt)}</div>
+      </div>
+      <button class="btn-restore" onclick="restoreCol('${col.id}')">Restore</button>
+    </div>
+  `).join('');
+}
+
+// ── Week label ────────────────────────────────────────────────────────────────
+
+function isDone(colId) { return colId === 'col-done'; }
+
+function weekLabel(d = new Date()) {
+  return `${d.toLocaleDateString('en-US', { month: 'short' })} W${Math.ceil(d.getDate() / 7)}`;
+}
+
+function weekOpts() {
+  const seen = [], out = [];
+  for (let i = -5; i <= 2; i++) {
+    const d = new Date();
+    d.setDate(d.getDate() + i * 7);
+    const l = weekLabel(d);
+    if (!seen.includes(l)) { seen.push(l); out.push(l); }
+  }
+  return out;
+}
+
+function toggleWeekPick(e, colId) {
+  e.stopPropagation();
+  const existing = document.getElementById(`wp-${colId}`);
+  closeWeekPickers();
+  if (existing) return;
+  const badge = e.currentTarget;
+  const col = state.columns.find(c => c.id === colId);
+  const cur = col?.week || weekLabel();
+  const pick = document.createElement('div');
+  pick.className = 'week-picker';
+  pick.id = `wp-${colId}`;
+  pick.innerHTML = weekOpts().map(w => `
+    <div class="week-opt ${w === cur ? 'active' : ''}"
+         onclick="setWeek(event,'${colId}','${w}')">${w}</div>
+  `).join('');
+  badge.appendChild(pick);
+  setTimeout(() => document.addEventListener('click', closeWeekPickers, { once: true }), 0);
+}
+
+function closeWeekPickers() {
+  document.querySelectorAll('.week-picker').forEach(p => p.remove());
+}
+
+function setWeek(e, colId, week) {
+  e.stopPropagation();
+  const col = state.columns.find(c => c.id === colId);
+  if (!col) return;
+  col.week = week;
+  persist();
+  render();
+}
+
+function deleteCol(colId) {
+  const col = state.columns.find(c => c.id === colId);
+  if (!col) return;
+  const msg = col.cards.length
+    ? `Delete "${col.title}" and its ${col.cards.length} card${col.cards.length !== 1 ? 's' : ''}? This cannot be undone.`
+    : `Delete "${col.title}"?`;
+  if (!confirm(msg)) return;
+  state.columns = state.columns.filter(c => c.id !== colId);
+  persist();
+  render();
+}
+
+// ── Backup (File System Access API + IndexedDB) ───────────────────────────────
+
+const HAS_FSA = 'showSaveFilePicker' in window;
+let bkHandle = null;
+let bkStatus = 'none';
+let bkTimer  = null;
+
+function dbOpen() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open('lg-kb-bk', 1);
+    r.onupgradeneeded = e => e.target.result.createObjectStore('h');
+    r.onsuccess = e => res(e.target.result);
+    r.onerror   = e => rej(e.target.error);
+  });
+}
+
+async function dbGet(k) {
+  const db = await dbOpen();
+  return new Promise(r => {
+    const req = db.transaction('h','readonly').objectStore('h').get(k);
+    req.onsuccess = e => r(e.target.result ?? null);
+    req.onerror   = () => r(null);
+  });
+}
+
+async function dbSet(k, v) {
+  const db = await dbOpen();
+  return new Promise(r => {
+    const tx = db.transaction('h','readwrite');
+    tx.objectStore('h').put(v, k);
+    tx.oncomplete = r;
+  });
+}
+
+async function dbDel(k) {
+  const db = await dbOpen();
+  return new Promise(r => {
+    const tx = db.transaction('h','readwrite');
+    tx.objectStore('h').delete(k);
+    tx.oncomplete = r;
+  });
+}
+
+async function initBackup() {
+  if (!HAS_FSA) { setBkUI('no-fsa'); return; }
+  try {
+    const h = await dbGet('bk');
+    if (!h) { setBkUI('none'); return; }
+    const perm = await h.queryPermission({ mode: 'readwrite' });
+    bkHandle = h;
+    setBkUI(perm === 'granted' ? 'connected' : 'needs-reauth');
+  } catch { setBkUI('none'); }
+}
+
+function scheduleBackup() {
+  if (bkStatus !== 'connected' || !bkHandle) return;
+  clearTimeout(bkTimer);
+  bkTimer = setTimeout(doBackup, 500);
+}
+
+async function doBackup() {
+  if (!bkHandle || bkStatus !== 'connected') return;
+  try {
+    const w = await bkHandle.createWritable();
+    await w.write(JSON.stringify(state, null, 2));
+    await w.close();
+  } catch { setBkUI('error'); }
+}
+
+async function connectBackup() {
+  closeBkPop();
+  try {
+    const h = await window.showSaveFilePicker({
+      suggestedName: 'launchgood-kanban.json',
+      types: [{ description: 'JSON backup', accept: { 'application/json': ['.json'] } }],
+    });
+    await dbSet('bk', h);
+    bkHandle = h;
+    setBkUI('connected');
+    await doBackup();
+  } catch (e) { if (e.name !== 'AbortError') setBkUI('error'); }
+}
+
+async function reauthorize() {
+  closeBkPop();
+  if (!bkHandle) return;
+  try {
+    const perm = await bkHandle.requestPermission({ mode: 'readwrite' });
+    if (perm === 'granted') { setBkUI('connected'); await doBackup(); }
+  } catch {}
+}
+
+async function disconnectBackup() {
+  closeBkPop();
+  await dbDel('bk');
+  bkHandle = null;
+  setBkUI('none');
+}
+
+async function importFile() {
+  closeBkPop();
+  try {
+    const [h] = await window.showOpenFilePicker({
+      types: [{ description: 'JSON backup', accept: { 'application/json': ['.json'] } }],
+    });
+    const data = JSON.parse(await (await h.getFile()).text());
+    if (data.columns) { state = data; persist(); render(); }
+  } catch (e) { if (e.name !== 'AbortError') alert('Could not read file.'); }
+}
+
+function exportFile() {
+  closeBkPop();
+  const a = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' })),
+    download: `launchgood-kanban-${new Date().toISOString().slice(0,10)}.json`,
+  });
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function setBkUI(status) {
+  bkStatus = status;
+  const btn = document.getElementById('backup-btn');
+  const lbl = document.getElementById('backup-lbl');
+  if (!btn || !lbl) return;
+  btn.className = 'backup-pill';
+  const labels = {
+    connected:    ['connected',    'Backup on'],
+    'needs-reauth': ['needs-reauth', 'Re-authorize'],
+    error:        ['error',        'Backup error'],
+    'no-fsa':     ['',             'Export'],
+    none:         ['',             'Backup off'],
+  };
+  const [cls, text] = labels[status] ?? ['', 'Backup'];
+  if (cls) btn.classList.add(cls);
+  lbl.textContent = text;
+}
+
+// Backup popover
+let bkPopOpen = false;
+
+function toggleBkPop() {
+  bkPopOpen ? closeBkPop() : openBkPop();
+}
+
+function openBkPop() {
+  closeBkPop();
+  bkPopOpen = true;
+  const pop = document.createElement('div');
+  pop.className = 'bk-pop';
+  pop.id = 'bk-pop';
+
+  const rows = [];
+
+  if (!HAS_FSA) {
+    rows.push(`<div class="bk-title">File Access API unavailable</div>`);
+    rows.push(`<button class="bk-item" onclick="exportFile()">⬇ Download JSON backup</button>`);
+  } else if (bkStatus === 'connected') {
+    rows.push(`<button class="bk-item" onclick="doBackup().then(closeBkPop)">↺ Back up now</button>`);
+    rows.push(`<div class="bk-sep"></div>`);
+    rows.push(`<button class="bk-item" onclick="importFile()">⬆ Restore from file</button>`);
+    rows.push(`<button class="bk-item" onclick="exportFile()">⬇ Download copy</button>`);
+    rows.push(`<div class="bk-sep"></div>`);
+    rows.push(`<button class="bk-item danger" onclick="disconnectBackup()">Disconnect backup file</button>`);
+  } else if (bkStatus === 'needs-reauth') {
+    rows.push(`<button class="bk-item" onclick="reauthorize()">Re-authorize file access</button>`);
+    rows.push(`<div class="bk-sep"></div>`);
+    rows.push(`<button class="bk-item" onclick="connectBackup()">Change backup file</button>`);
+    rows.push(`<button class="bk-item danger" onclick="disconnectBackup()">Disconnect</button>`);
+  } else {
+    rows.push(`<div class="bk-title">Auto-save to a JSON file</div>`);
+    rows.push(`<button class="bk-item" onclick="connectBackup()">Connect backup file…</button>`);
+    rows.push(`<div class="bk-sep"></div>`);
+    rows.push(`<button class="bk-item" onclick="importFile()">⬆ Restore from file</button>`);
+    rows.push(`<button class="bk-item" onclick="exportFile()">⬇ Download JSON backup</button>`);
+  }
+
+  pop.innerHTML = rows.join('');
+  document.body.appendChild(pop);
+  setTimeout(() => document.addEventListener('click', closeBkPop, { once: true }), 0);
+}
+
+function closeBkPop() {
+  document.getElementById('bk-pop')?.remove();
+  bkPopOpen = false;
+}
+
+// ── Week rollover ─────────────────────────────────────────────────────────────
+
+function checkWeekRollover() {
+  const done = state.columns.find(c => c.id === 'col-done');
+  if (!done || !done.week) return;
+  const current = weekLabel();
+  if (done.week === current) return;
+
+  if (done.cards.length > 0) {
+    // Archive the old Done and create a fresh one in its place
+    const idx = state.columns.findIndex(c => c.id === 'col-done');
+    done.archivedAt = new Date().toISOString();
+    (state.archived ??= []).push(done);
+    state.columns.splice(idx, 1, { id: 'col-done', title: 'Done', cards: [], week: current });
+    persist();
+    showToast(`Done rolled over to ${current}`);
+  } else {
+    // Empty Done — just update the week label
+    done.week = current;
+    persist();
+  }
+}
+
+function showToast(msg) {
+  const t = document.createElement('div');
+  t.textContent = msg;
+  Object.assign(t.style, {
+    position: 'fixed', bottom: '24px', left: '50%', transform: 'translateX(-50%)',
+    background: oklch ? 'oklch(20% 0.02 262)' : '#1a1a2e',
+    background: 'oklch(20% 0.02 262)',
+    color: 'oklch(90% 0.008 78)',
+    padding: '9px 18px', borderRadius: '8px', fontSize: '13px',
+    boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+    zIndex: '999', opacity: '0', transition: 'opacity 0.2s',
+  });
+  document.body.appendChild(t);
+  requestAnimationFrame(() => { t.style.opacity = '1'; });
+  setTimeout(() => {
+    t.style.opacity = '0';
+    setTimeout(() => t.remove(), 200);
+  }, 3000);
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+
+checkWeekRollover();
+render();
+initBackup();
+</script>
+</body>
+</html>
