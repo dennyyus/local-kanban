@@ -304,6 +304,7 @@
       box-shadow: var(--shadow-sm);
       border: 1px solid var(--border-soft);
       transition: box-shadow 0.15s, transform 0.1s;
+      position: relative;
     }
 
     .card:active { cursor: grabbing; }
@@ -586,18 +587,26 @@
     }
 
     .btn-card-open {
-      background: none;
-      border: none;
+      position: absolute;
+      top: 7px;
+      right: 7px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 5px;
       cursor: pointer;
-      color: oklch(78% 0.008 78);
-      font-size: 12px;
-      padding: 0 2px;
+      color: var(--text-3);
+      font-size: 11px;
+      padding: 3px 5px;
       font-family: inherit;
       line-height: 1;
-      transition: color 0.12s;
+      opacity: 0;
+      transition: opacity 0.12s, color 0.12s, background 0.12s;
+      box-shadow: var(--shadow-xs);
     }
 
-    .btn-card-open:hover { color: var(--accent); }
+    .btn-card-open { opacity: 0.35; }
+    .card:hover .btn-card-open { opacity: 1; }
+    .btn-card-open:hover { color: var(--accent); background: var(--accent-bg); border-color: var(--accent); }
 
     /* ── Detail panel ────────────────────────────────────── */
     .panel-backdrop {
@@ -672,7 +681,8 @@
 
     textarea.panel-title {
       width: 100%;
-      border: none;
+      border: 1.5px solid transparent;
+      border-radius: 6px;
       outline: none;
       font-size: 16px;
       font-weight: 600;
@@ -681,11 +691,22 @@
       background: transparent;
       resize: none;
       line-height: 1.5;
-      padding: 0;
-      overflow: hidden;
+      padding: 6px 8px;
+      margin: -6px -8px;
+      width: calc(100% + 16px);
+      transition: border-color 0.12s, background 0.12s;
     }
 
-    textarea.panel-title:focus { outline: none; }
+    textarea.panel-title:hover {
+      background: oklch(95% 0.008 78);
+      border-color: var(--border);
+    }
+
+    textarea.panel-title:focus {
+      background: var(--surface);
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px oklch(64% 0.175 162 / 0.12);
+    }
 
     .panel-section {
       display: flex;
@@ -861,10 +882,10 @@ function mkCard(colId, card) {
   el.draggable = true;
 
   el.innerHTML = `
+    <button class="btn-card-open" title="Open card" onclick="openCard('${colId}','${card.id}')">↗</button>
     <div class="card-text">${esc(card.text)}</div>
     <div class="card-footer">
       ${card.detail ? `<span class="card-has-detail" title="Has notes">≡ Notes</span>` : ''}
-      <button class="btn-card-open" title="Open card" onclick="openCard('${colId}','${card.id}')">↗</button>
       <button class="btn-del" title="Delete" onclick="delCard('${colId}','${card.id}')">✕</button>
     </div>
   `;
