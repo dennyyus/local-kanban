@@ -1052,7 +1052,22 @@ function renderArc() {
 function isDone(colId) { return colId === 'col-done'; }
 
 function weekLabel(d = new Date()) {
-  return `${d.toLocaleDateString('en-US', { month: 'short' })} W${Math.ceil(d.getDate() / 7)}`;
+  // Find the Monday of d's week
+  const day = d.getDay(); // 0=Sun … 6=Sat
+  const monday = new Date(d);
+  monday.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+  monday.setHours(0, 0, 0, 0);
+
+  // Find the first Monday of that month
+  const yr = monday.getFullYear();
+  const mo = monday.getMonth();
+  const firstDay = new Date(yr, mo, 1).getDay();
+  const firstMonday = new Date(yr, mo, 1 + (firstDay === 1 ? 0 : firstDay === 0 ? 1 : 8 - firstDay));
+
+  // Which week of the month is this Monday?
+  const weekNum = Math.round((monday - firstMonday) / (7 * 864e5)) + 1;
+
+  return `${monday.toLocaleDateString('en-US', { month: 'short' })} W${weekNum}`;
 }
 
 function weekOpts() {
