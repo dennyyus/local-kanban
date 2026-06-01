@@ -337,6 +337,108 @@
     .btn-del:hover { color: oklch(55% 0.2 25); }
 
     .btn-icon.del:hover { color: oklch(55% 0.2 25); background: oklch(96% 0.04 25); }
+    .btn-icon.move { font-size: 12px; opacity: 0.5; }
+    .btn-icon.move:hover { opacity: 1; }
+
+    /* ── Inline card edit ────────────────────────────────── */
+    .card-edit-input {
+      width: 100%;
+      border: 1.5px solid var(--accent);
+      border-radius: 5px;
+      padding: 2px 4px;
+      font-size: 13.5px;
+      font-family: inherit;
+      color: var(--text-1);
+      background: var(--surface);
+      resize: none;
+      outline: none;
+      line-height: 1.55;
+      box-shadow: 0 0 0 3px oklch(64% 0.175 162 / 0.12);
+    }
+
+    /* ── Attachments ─────────────────────────────────────── */
+    .card-attach-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: 6px;
+    }
+
+    .attach-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: oklch(93% 0.008 78);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-size: 11px;
+      color: var(--text-2);
+      padding: 2px 7px;
+      cursor: pointer;
+      max-width: 140px;
+      transition: background 0.12s;
+    }
+
+    .attach-chip:hover { background: oklch(89% 0.012 78); }
+    .attach-chip .chip-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    .panel-attach-list { display: flex; flex-direction: column; gap: 6px; }
+
+    .panel-attach-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 10px;
+      background: oklch(96.5% 0.008 78);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      font-size: 13px;
+    }
+
+    .panel-attach-name {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--text-1);
+      cursor: pointer;
+    }
+
+    .panel-attach-name:hover { color: var(--accent); }
+
+    .panel-attach-size { font-size: 11px; color: var(--text-3); flex-shrink: 0; }
+
+    .btn-attach-del {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--text-3);
+      font-size: 13px;
+      padding: 0;
+      line-height: 1;
+      flex-shrink: 0;
+      transition: color 0.12s;
+    }
+
+    .btn-attach-del:hover { color: oklch(55% 0.2 25); }
+
+    .btn-attach-add {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      background: none;
+      border: 1.5px dashed var(--border);
+      border-radius: 7px;
+      padding: 7px 12px;
+      font-size: 13px;
+      font-family: inherit;
+      color: var(--text-3);
+      cursor: pointer;
+      width: 100%;
+      transition: border-color 0.12s, color 0.12s, background 0.12s;
+    }
+
+    .btn-attach-add:hover { border-color: var(--accent); color: var(--accent-dk); background: var(--accent-bg); }
 
     .btn-new-week {
       background: none;
@@ -783,6 +885,7 @@
 </header>
 
 <input type="file" id="file-import" accept=".json" style="display:none" onchange="importFromInput(this)">
+<input type="file" id="attach-input" multiple style="display:none" onchange="handleAttachFiles(this)">
 
 <div class="board-area">
   <div class="meta-row">
@@ -847,7 +950,7 @@ let drag = null;
 function render() {
   const board = document.getElementById('board');
   board.innerHTML = '';
-  state.columns.forEach(col => board.appendChild(mkCol(col)));
+  state.columns.forEach((col, idx) => board.appendChild(mkCol(col, idx)));
   board.appendChild(mkAddColBtn());
   renderArc();
 }
@@ -856,7 +959,9 @@ function colCls(id) {
   return { 'col-todo': 'col-todo', 'col-doing': 'col-doing', 'col-done': 'col-done' }[id] ?? 'col-custom';
 }
 
-function mkCol(col) {
+function mkCol(col, idx = 0) {
+  const isFirst = idx === 0;
+  const isLast  = idx === state.columns.length - 1;
   const el = document.createElement('div');
   el.className = `column ${colCls(col.id)}`;
   el.dataset.colId = col.id;
@@ -880,6 +985,8 @@ function mkCol(col) {
         </button>` : ''}
       </div>
       <div style="display:flex;gap:2px;align-items:center">
+        ${!isFirst ? `<button class="btn-icon move" title="Move left" onclick="moveCol('${col.id}',-1)">←</button>` : ''}
+        ${!isLast  ? `<button class="btn-icon move" title="Move right" onclick="moveCol('${col.id}',1)">→</button>` : ''}
         <button class="btn-icon del" title="Delete list" onclick="deleteCol('${col.id}')">✕</button>
         <button class="btn-icon" title="Archive list" onclick="arcCol('${col.id}')">⊘</button>
       </div>
@@ -908,16 +1015,27 @@ function mkCard(colId, card) {
   el.className = 'card';
   el.draggable = true;
 
+  const attachCount = (card.attachments || []).length;
+  const attachHtml  = attachCount
+    ? `<div class="card-attach-row">${(card.attachments).map((a,i) =>
+        `<span class="attach-chip" onclick="downloadAttach('${colId}','${card.id}',${i})" title="${esc(a.name)}">
+          <span>📎</span><span class="chip-name">${esc(a.name)}</span>
+        </span>`).join('')}</div>` : '';
+
   el.innerHTML = `
     <button class="btn-card-open" title="Open card" onclick="openCard('${colId}','${card.id}')">↗</button>
-    <div class="card-text">${esc(card.text)}</div>
+    <div class="card-text" title="Double-click to edit">${esc(card.text)}</div>
+    ${attachHtml}
     <div class="card-footer">
       ${card.detail ? `<span class="card-has-detail" title="Has notes">≡ Notes</span>` : ''}
       <button class="btn-del" title="Delete" onclick="delCard('${colId}','${card.id}')">✕</button>
     </div>
   `;
 
-  el.addEventListener('dragstart', () => { drag = { colId, cardId: card.id }; el.classList.add('dragging'); });
+  const textEl = el.querySelector('.card-text');
+  textEl.addEventListener('dblclick', e => { e.stopPropagation(); startInlineEdit(colId, card, textEl, el); });
+
+  el.addEventListener('dragstart', () => { if (!el.draggable) return; drag = { colId, cardId: card.id }; el.classList.add('dragging'); });
   el.addEventListener('dragend',   () => { el.classList.remove('dragging'); drag = null; });
   return el;
 }
@@ -1407,6 +1525,11 @@ function openCard(colId, cardId) {
         <div class="panel-section-label">Notes</div>
         <textarea class="panel-detail" id="panel-detail" placeholder="Add more detail…">${esc(card.detail || '')}</textarea>
       </div>
+      <div class="panel-section">
+        <div class="panel-section-label">Attachments</div>
+        <div class="panel-attach-list" id="panel-attachments"></div>
+        <button class="btn-attach-add" onclick="openAttachPicker('${colId}','${card.id}')">＋ Attach file</button>
+      </div>
     </div>
   `;
   document.body.appendChild(panel);
@@ -1415,6 +1538,7 @@ function openCard(colId, cardId) {
 
   document.getElementById('panel-title').addEventListener('input', scheduleCardSave);
   document.getElementById('panel-detail').addEventListener('input', scheduleCardSave);
+  renderPanelAttachments(colId, card.id);
 
   panel._esc = e => { if (e.key === 'Escape') closeCard(); };
   document.addEventListener('keydown', panel._esc);
@@ -1454,6 +1578,126 @@ function closePanelDom(instant) {
   panel.classList.remove('open');
   bd?.classList.remove('open');
   setTimeout(() => { panel.remove(); bd?.remove(); render(); }, 220);
+}
+
+// ── Column reorder ────────────────────────────────────────────────────────────
+
+function moveCol(colId, dir) {
+  const idx = state.columns.findIndex(c => c.id === colId);
+  const to  = idx + dir;
+  if (to < 0 || to >= state.columns.length) return;
+  [state.columns[idx], state.columns[to]] = [state.columns[to], state.columns[idx]];
+  persist();
+  render();
+}
+
+// ── Inline card edit ──────────────────────────────────────────────────────────
+
+function startInlineEdit(colId, card, textEl, cardEl) {
+  cardEl.draggable = false;
+  const ta = document.createElement('textarea');
+  ta.className = 'card-edit-input';
+  ta.value = card.text;
+  ta.rows = Math.max(2, card.text.split('\n').length);
+  textEl.replaceWith(ta);
+  ta.focus();
+  ta.setSelectionRange(ta.value.length, ta.value.length);
+
+  const save = () => {
+    const newText = ta.value.trim();
+    const col  = state.columns.find(c => c.id === colId);
+    const c    = col?.cards.find(c => c.id === card.id);
+    if (c && newText) c.text = newText;
+    persist();
+    render();
+    // Sync panel title if open
+    const pt = document.getElementById('panel-title');
+    if (panelState?.cardId === card.id && pt) pt.value = newText || card.text;
+  };
+
+  ta.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); ta.removeEventListener('blur', save); save(); }
+    if (e.key === 'Escape') { ta.removeEventListener('blur', save); render(); }
+  });
+  ta.addEventListener('blur', save);
+}
+
+// ── Attachments ───────────────────────────────────────────────────────────────
+
+let attachTarget = null; // { colId, cardId }
+
+function openAttachPicker(colId, cardId) {
+  attachTarget = { colId, cardId };
+  document.getElementById('attach-input').click();
+}
+
+function handleAttachFiles(input) {
+  const files = Array.from(input.files);
+  if (!files.length || !attachTarget) return;
+  const { colId, cardId } = attachTarget;
+  attachTarget = null;
+
+  const col  = state.columns.find(c => c.id === colId);
+  const card = col?.cards.find(c => c.id === cardId);
+  if (!card) return;
+  card.attachments = card.attachments || [];
+
+  let pending = files.length;
+  files.forEach(file => {
+    if (file.size > 3 * 1024 * 1024) {
+      alert(`"${file.name}" is over 3 MB and was skipped. Attachments are stored in localStorage — keep files small.`);
+      if (--pending === 0) { persist(); renderPanelAttachments(colId, cardId); render(); }
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = e => {
+      card.attachments.push({ name: file.name, type: file.type, size: file.size, data: e.target.result });
+      if (--pending === 0) { persist(); renderPanelAttachments(colId, cardId); render(); }
+    };
+    reader.readAsDataURL(file);
+  });
+  input.value = '';
+}
+
+function renderPanelAttachments(colId, cardId) {
+  const el = document.getElementById('panel-attachments');
+  if (!el) return;
+  const col  = state.columns.find(c => c.id === colId);
+  const card = col?.cards.find(c => c.id === cardId);
+  const attachments = card?.attachments || [];
+  if (!attachments.length) { el.innerHTML = ''; return; }
+  el.innerHTML = attachments.map((a, i) => `
+    <div class="panel-attach-item">
+      <span class="panel-attach-name" onclick="downloadAttach('${colId}','${cardId}',${i})" title="Click to download">📎 ${esc(a.name)}</span>
+      <span class="panel-attach-size">${fmtSize(a.size)}</span>
+      <button class="btn-attach-del" onclick="removeAttach('${colId}','${cardId}',${i})" title="Remove">✕</button>
+    </div>
+  `).join('');
+}
+
+function downloadAttach(colId, cardId, idx) {
+  const col  = state.columns.find(c => c.id === colId);
+  const card = col?.cards.find(c => c.id === cardId);
+  const a    = card?.attachments?.[idx];
+  if (!a) return;
+  const link = Object.assign(document.createElement('a'), { href: a.data, download: a.name });
+  link.click();
+}
+
+function removeAttach(colId, cardId, idx) {
+  const col  = state.columns.find(c => c.id === colId);
+  const card = col?.cards.find(c => c.id === cardId);
+  if (!card?.attachments) return;
+  card.attachments.splice(idx, 1);
+  persist();
+  renderPanelAttachments(colId, cardId);
+  render();
+}
+
+function fmtSize(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 // ── Week rollover ─────────────────────────────────────────────────────────────
