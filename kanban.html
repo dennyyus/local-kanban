@@ -338,6 +338,29 @@
 
     .btn-icon.del:hover { color: oklch(55% 0.2 25); background: oklch(96% 0.04 25); }
 
+    .btn-new-week {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      font-size: 11px;
+      font-weight: 600;
+      font-family: inherit;
+      color: var(--text-2);
+      cursor: pointer;
+      padding: 4px 10px;
+      width: 100%;
+      text-align: left;
+      position: relative;
+      z-index: 201;
+      transition: background 0.12s, border-color 0.12s, color 0.12s;
+    }
+
+    .btn-new-week:hover {
+      background: var(--accent-bg);
+      border-color: var(--accent);
+      color: var(--accent-dk);
+    }
+
     /* ── Week badge ──────────────────────────────────────── */
     .week-badge {
       display: inline-flex;
@@ -856,11 +879,12 @@ function mkCol(col) {
           ${esc(col.week || weekLabel())}<span class="caret">▾</span>
         </button>` : ''}
       </div>
-      <div style="display:flex;gap:2px">
+      <div style="display:flex;gap:2px;align-items:center">
         <button class="btn-icon del" title="Delete list" onclick="deleteCol('${col.id}')">✕</button>
         <button class="btn-icon" title="Archive list" onclick="arcCol('${col.id}')">⊘</button>
       </div>
     </div>
+    ${isDone(col.id) ? `<div style="padding:0 12px 8px"><button class="btn-new-week" id="btn-new-week" onclick="rollDone()">↻ New week</button></div>` : ''}
     <div class="cards" id="cards-${col.id}"></div>
     <div class="add-card-area" id="add-${col.id}">
       <button class="btn-add-card" onclick="showAdd('${col.id}')">
@@ -868,6 +892,7 @@ function mkCol(col) {
       </button>
     </div>
   `;
+
 
   const cardsEl = el.querySelector(`#cards-${col.id}`);
   if (!col.cards.length) {
@@ -1111,6 +1136,20 @@ function setWeek(e, colId, week) {
   const col = state.columns.find(c => c.id === colId);
   if (!col) return;
   col.week = week;
+  persist();
+  render();
+}
+
+function rollDone() {
+  const idx = state.columns.findIndex(c => c.id === 'col-done');
+  if (idx === -1) { alert('No Done column found — ID mismatch. Open the console (F12) and type: state.columns.map(c=>c.id)'); return; }
+  const done = state.columns[idx];
+  if (done.cards.length > 0) {
+    done.archivedAt = new Date().toISOString();
+    (state.archived ??= []).push(done);
+    showToast(`${done.week || 'Done'} archived`);
+  }
+  state.columns.splice(idx, 1, { id: 'col-done', title: 'Done', cards: [], week: weekLabel() });
   persist();
   render();
 }
@@ -1445,9 +1484,8 @@ function showToast(msg) {
   t.textContent = msg;
   Object.assign(t.style, {
     position: 'fixed', bottom: '24px', left: '50%', transform: 'translateX(-50%)',
-    background: oklch ? 'oklch(20% 0.02 262)' : '#1a1a2e',
-    background: 'oklch(20% 0.02 262)',
-    color: 'oklch(90% 0.008 78)',
+    background: '#1a1d2e',
+    color: '#e8ead0',
     padding: '9px 18px', borderRadius: '8px', fontSize: '13px',
     boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
     zIndex: '999', opacity: '0', transition: 'opacity 0.2s',
@@ -1464,6 +1502,10 @@ function showToast(msg) {
 
 render();
 initBackup();
+
+document.addEventListener('click', e => {
+  if (e.target.closest('.btn-new-week')) { e.stopPropagation(); rollDone(); }
+});
 </script>
 </body>
 </html>
