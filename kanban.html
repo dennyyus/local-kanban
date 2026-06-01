@@ -759,6 +759,8 @@
   </button>
 </header>
 
+<input type="file" id="file-import" accept=".json" style="display:none" onchange="importFromInput(this)">
+
 <div class="board-area">
   <div class="meta-row">
     <button class="btn-archive-toggle" onclick="toggleArchive()">
@@ -1226,13 +1228,32 @@ async function disconnectBackup() {
 
 async function importFile() {
   closeBkPop();
-  try {
-    const [h] = await window.showOpenFilePicker({
-      types: [{ description: 'JSON backup', accept: { 'application/json': ['.json'] } }],
-    });
-    const data = JSON.parse(await (await h.getFile()).text());
-    if (data.columns) { state = data; persist(); render(); }
-  } catch (e) { if (e.name !== 'AbortError') alert('Could not read file.'); }
+  if (HAS_FSA) {
+    try {
+      const [h] = await window.showOpenFilePicker({
+        types: [{ description: 'JSON backup', accept: { 'application/json': ['.json'] } }],
+      });
+      const data = JSON.parse(await (await h.getFile()).text());
+      if (data.columns) { state = data; persist(); render(); }
+    } catch (e) { if (e.name !== 'AbortError') alert('Could not read file.'); }
+  } else {
+    document.getElementById('file-import').click();
+  }
+}
+
+function importFromInput(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (data.columns) { state = data; persist(); render(); }
+      else alert('Invalid backup file.');
+    } catch { alert('Could not read file.'); }
+  };
+  reader.readAsText(file);
+  input.value = '';
 }
 
 function exportFile() {
@@ -1280,7 +1301,7 @@ function openBkPop() {
   const rows = [];
 
   if (!HAS_FSA) {
-    rows.push(`<div class="bk-title">File Access API unavailable</div>`);
+    rows.push(`<button class="bk-item" onclick="importFile()">⬆ Restore from file</button>`);
     rows.push(`<button class="bk-item" onclick="exportFile()">⬇ Download JSON backup</button>`);
   } else if (bkStatus === 'connected') {
     rows.push(`<button class="bk-item" onclick="doBackup().then(closeBkPop)">↺ Back up now</button>`);
@@ -1441,7 +1462,6 @@ function showToast(msg) {
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 
-checkWeekRollover();
 render();
 initBackup();
 </script>
